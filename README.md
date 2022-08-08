@@ -1,35 +1,36 @@
-# RemoteSwitch
+# Google Assistant controlled Remote Switch
 
-A Particle project named RemoteSwitch
+## Remote Control for RF 433MHz RC Outlet Switch using [Particle Photon](https://docs.particle.io/photon/)
 
-## Welcome to your project!
+The code could support most of the RF 433MHz RC Switch. To setup the switch:
 
-Every new Particle project is composed of 3 important elements that you'll see have been created in your project directory for RemoteSwitch.
+* Build and flash the code to Photon
+* Go to [Particle devices console](https://console.particle.io/devices), click on the Photon device and go to the device page. (See screenshot below.)
+* Press a button on the Remote Control, the Photon RF receiver wlll decode the RF signal and publish it to the device console.
+* Find the tristate-received event and copy the data string. E.g. `1F11FFF10000 162 1`
+* Paste the string to the input box for function *f* `sendtristate`, then click the "CALL" button
+* When Photon received the function call with the tristate, it will replay the RF signal using the RF transmitter.
+* The Switch will toggle when receive the signal.
 
-#### ```/src``` folder:  
-This is the source folder that contains the firmware files for your project. It should *not* be renamed. 
-Anything that is in this folder when you compile your project will be sent to our compile service and compiled into a firmware binary for the Particle device that you have targeted.
+![Particle Device Console](Particle_Console.png)
 
-If your application contains multiple files, they should all be included in the `src` folder. If your firmware depends on Particle libraries, those dependencies are specified in the `project.properties` file referenced below.
+## Integrate with Google Assistant using [IFTTT](https://ifttt.com/)
 
-#### ```.ino``` file:
-This file is the firmware that will run as the primary application on your Particle device. It contains a `setup()` and `loop()` function, and can be written in Wiring or C/C++. For more information about using the Particle firmware API to create firmware for your Particle device, refer to the [Firmware Reference](https://docs.particle.io/reference/firmware/) section of the Particle documentation.
+* Go to [IFTTT](https://ifttt.com/) and create an IFTTT Applet
+* Set IF condition to 'Say a simple phrase'. E.g. "Turn on light in family room"
+* Set Action to call Particle function. `{"label":"core_function","value":"RemoteSwitch:::sendtristate"}`
+* Set Input to the tristate data string. e.g. `1F11FFF00001 175 1`
+* Now say the phrase to Google Assistant and the Photon will response and toggle the switch.
 
-#### ```project.properties``` file:  
-This is the file that specifies the name and version number of the libraries that your project depends on. Dependencies are added automatically to your `project.properties` file when you add a library to a project using the `particle library add` command in the CLI or add a library in the Desktop IDE.
+![IFTTT Applet](IFTTT_Google_Assistant_Integration.png)
 
-## Adding additional files to your project
+## HW setup
 
-#### Projects with multiple sources
-If you would like add additional files to your application, they should be added to the `/src` folder. All files in the `/src` folder will be sent to the Particle Cloud to produce a compiled binary.
+[![RF RC Switch](RC_Switch.jpg)](https://www.amazon.com/dp/B0065PASNI/ref=pe_309540_26725410_item)
 
-#### Projects with external libraries
-If your project includes a library that has not been registered in the Particle libraries system, you should create a new folder named `/lib/<libraryname>/src` under `/<project dir>` and add the `.h`, `.cpp` & `library.properties` files for your library there. Read the [Firmware Libraries guide](https://docs.particle.io/guide/tools-and-features/libraries/) for more details on how to develop libraries. Note that all contents of the `/lib` folder and subfolders will also be sent to the Cloud for compilation.
+![Circuit Top](Circuit_Top.png)
 
-## Compiling your project
+![Circuit Front](Circuit_Front.png)
 
-When you're ready to compile your project, make sure you have the correct Particle device target selected and run `particle compile <platform>` in the CLI or click the Compile button in the Desktop IDE. The following files in your project folder will be sent to the compile service:
+![Circuit Back](Circuit_Back.png)
 
-- Everything in the `/src` folder, including your `.ino` application file
-- The `project.properties` file for your project
-- Any libraries stored under `lib/<libraryname>/src`
