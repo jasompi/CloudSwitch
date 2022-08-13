@@ -21,13 +21,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, readonly) NSString* id;
 @property (nonatomic, readonly, nullable) NSString* name;
-@property (nonatomic, readonly) BOOL connected;
 
 @end
 
 @interface CloudSwitchModel : NSObject
 
 @property (nonatomic, readonly) BOOL isAuthenticated;
+@property (nonatomic, readonly) BOOL cloudSwitchDeviceReachable;
 @property (nonatomic, readonly) NSArray<id<ParticleDevice>> *availableDevices;
 @property (nonatomic, readonly) id<ParticleDevice> cloudSwitchDevice;
 @property (nonatomic, readonly) NSUInteger numberOfSwitches;
@@ -43,7 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)seleteCloudSwitchDevice:(id<ParticleDevice>)cloudSwitchDevice;
 - (void)logout;
 
-- (BOOL)toggleSwitch:(NSUInteger)switchIndex;
+- (BOOL)toggleSwitch:(NSUInteger)switchIndex completion:(void (^)(NSError * _Nullable))completion;
 - (void)updateSwitch:(NSUInteger)switchIndex withName:(NSString *)name tristateCode:(NSString *)tristateCode;
 
 - (void)startListenForCode;

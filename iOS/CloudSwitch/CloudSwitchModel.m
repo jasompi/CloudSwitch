@@ -17,6 +17,8 @@ static NSString *const kCloudSwitchCodeKey = @"CloudSwitchCodeKey";
 static NSString *const kCloudSwitchFunctionName = @"sendtristate";
 static NSString *const kCloudSwitchEventName = @"tristate-received";
 
+static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
+
 @interface ParticleDevice (CloudSwitch)<ParticleDevice>
 
 @end
@@ -25,6 +27,7 @@ static NSString *const kCloudSwitchEventName = @"tristate-received";
     NSMutableArray<NSString *> *_switchNames;
     NSMutableArray<NSString *> *_switchCodes;
     ParticleDevice *_cloudSwitchDevice;
+    BOOL _cloudSwitchDeviceReachable;
 }
 
 @property (weak, nonatomic) id<CloudSwitchModelDelegate> delegate;
@@ -41,6 +44,25 @@ static NSString *const kCloudSwitchEventName = @"tristate-received";
 
 - (BOOL)isAuthenticated {
     return [ParticleCloud sharedInstance].isAuthenticated;
+}
+
+- (BOOL)cloudSwitchDeviceReachable {
+    dispatch_assert_queue(dispatch_get_main_queue());
+    return _cloudSwitchDeviceReachable;
+}
+
+- (void)setCloudSwitchDeviceReachable:(BOOL)reachable {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self->_cloudSwitchDeviceReachable != reachable) {
+            self->_cloudSwitchDeviceReachable = reachable;
+            if (reachable) {
+                [self performSelector:@selector(checkCloudSwitchDeviceReachable)
+                               withObject:nil
+                               afterDelay:kCloudSwitchReachableCheckPeriod];
+            }
+            [self.delegate onSwitchStateChanged];
+        }
+    });
 }
 
 - (NSArray<NSString *> *)switchNames {
@@ -104,15 +126,40 @@ static NSString *const kCloudSwitchEventName = @"tristate-received";
         _cloudSwitchDevice.delegate = self;
         [self restoreCloudSwitches];
         [[NSUserDefaults standardUserDefaults] setObject:_cloudSwitchDevice.id forKey:kCloudSwitchDeviceIDKey];
+        self.cloudSwitchDeviceReachable = _cloudSwitchDevice.connected;
         [self.delegate onSwitchStateChanged];
     }
 }
 
 - (void)particleDevice:(ParticleDevice *)device didReceiveSystemEvent:(ParticleDeviceSystemEvent)event {
-    if (event == ParticleDeviceSystemEventCameOnline || event == ParticleDeviceSystemEventWentOffline)
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.delegate onSwitchStateChanged];
-    });
+    if (event == ParticleDeviceSystemEventCameOnline || event == ParticleDeviceSystemEventWentOffline) {
+        NSLog(@"%@ %@", device.name, device.connected ? @"came Online" : @"went Offline");
+        self.cloudSwitchDeviceReachable = device.connected;
+    }
+}
+
+- (void)checkCloudSwitchDeviceReachable {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(checkCloudSwitchDeviceReachable) object:nil];
+    NSLog(@"Check clould switch device reachable");
+    [_cloudSwitchDevice ping:^(BOOL result, NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"ping cloud device failed error: %@", error);
+            self.cloudSwitchDeviceReachable = NO;
+            // TODO: change to use rechablility to trigger the check.
+            [self performSelector:@selector(checkCloudSwitchDeviceReachable)
+                           withObject:nil
+                           afterDelay:kCloudSwitchReachableCheckPeriod];
+        } else {
+            NSLog(@"Cloud switch device is%@ reachable.", result ? @"" : @" NOT");
+            self.cloudSwitchDeviceReachable = result;
+            if (result) {
+                // We will get notification when device came online. So only perfor check when device is alread online.
+                [self performSelector:@selector(checkCloudSwitchDeviceReachable)
+                               withObject:nil
+                               afterDelay:kCloudSwitchReachableCheckPeriod];
+            }
+        }
+    }];
 }
 
 - (void)updateSwitch:(NSUInteger)switchIndex withName:(NSString *)name tristateCode:(NSString *)tristateCode {
@@ -160,7 +207,6 @@ static NSString *const kCloudSwitchEventName = @"tristate-received";
                     [availableDevices addObject:device];
                     if ([device.id isEqualToString:cloudSwitchDeviceID]) {
                         self.cloudSwitchDevice = device;
-                        [self.delegate onSwitchStateChanged];
                     }
                 }
             }
@@ -197,7 +243,7 @@ static NSString *const kCloudSwitchEventName = @"tristate-received";
     }
 }
 
-- (BOOL)toggleSwitch:(NSUInteger)switchIndex {
+- (BOOL)toggleSwitch:(NSUInteger)switchIndex completion:(void (^)(NSError * _Nullable))completion {
     NSAssert(switchIndex < kNumberOfSwitch, @"Invalid switchIndex: %lu", switchIndex);
     if (self.switchCodes[switchIndex].length) {
         NSLog(@"Switch %ld toggled", switchIndex);
@@ -206,7 +252,9 @@ static NSString *const kCloudSwitchEventName = @"tristate-received";
                                completion:^(NSNumber * _Nullable result, NSError * _Nullable error) {
             if (error) {
                 NSLog(@"Failed to toggle switch %ld error: %@", switchIndex, error);
+                [self checkCloudSwitchDeviceReachable];
             }
+            completion(error);
         }];
         return YES;
     } else {

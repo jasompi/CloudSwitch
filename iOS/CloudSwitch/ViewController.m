@@ -54,7 +54,7 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
 }
 
 - (void)updateButtons {
-    BOOL deviceConnected = self.cloudSwitchModel.cloudSwitchDevice.connected;
+    BOOL deviceConnected = self.cloudSwitchModel.cloudSwitchDeviceReachable;
     for (NSInteger i = 0; i < kNumberOfSwitch; i++) {
         UIButton *switchButton = (UIButton *)[self.view viewWithTag:i + 1];
         BOOL buttonAssigned = self.cloudSwitchModel.switchCodes[i].length > 0;
@@ -87,16 +87,17 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
 
 - (IBAction)switchButtonTouchUpInside:(id)sender {
     NSUInteger switchIndex = [self switchIndex:sender];
+    UIButton *switchButton = (UIButton *)sender;
     if (self.buttonLongPressedBlock) {
         dispatch_block_cancel(self.buttonLongPressedBlock);
         self.buttonLongPressedBlock = nil;
-        [self toggleSwitch:switchIndex];
-    }
-}
-
-- (void)toggleSwitch:(NSUInteger)switchIndex {
-    if (![self.cloudSwitchModel toggleSwitch:switchIndex]) {
-        [self showLearnSwitchAlert:switchIndex];
+        if ([self.cloudSwitchModel toggleSwitch:switchIndex completion:^(NSError * _Nullable) {
+            switchButton.enabled = YES;
+        }]) {
+            switchButton.enabled = NO;
+        } else {
+            [self showLearnSwitchAlert:switchIndex];
+        }
     }
 }
 
