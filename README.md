@@ -12,7 +12,7 @@ The code could support most of the RF 433MHz RC Switch. To setup the switch:
 * When Photon received the function call with the tristate code, it will replay the RF signal using the RF transmitter.
 * The Switch will toggle when receive the signal.
 
-![Particle Device Console](Particle_Console.png)
+![Particle Device Console](docs/Particle_Console.png)
 
 ## Integrate with Google Assistant using [IFTTT](https://ifttt.com/)
 
@@ -22,7 +22,7 @@ The code could support most of the RF 433MHz RC Switch. To setup the switch:
 * Set Input to the tristate code string. e.g. `1F11FFF00001 175 1`
 * Now say the phrase to Google Assistant and the Photon will response and toggle the switch.
 
-![IFTTT Applet](IFTTT_Google_Assistant_Integration.png)
+![IFTTT Applet](docs/IFTTT_Google_Assistant_Integration.png)
 
 ## Button Control
 
@@ -48,12 +48,12 @@ static const char* kSwitchCodes[] {
 * D3 connect to the RF433 receiver Data Pin
 
 
-![Circuit Top](Circuit_Top.png)
+![Circuit Top](docs/Circuit_Top.png)
 
-![Circuit Front](Circuit_Front.png)
+![Circuit Front](docs/Circuit_Front.png)
 
-![Circuit Back](Circuit_Back.png)
+![Circuit Back](docs/Circuit_Back.png)
 
 ## RC Switch
 
-[![RF RC Switch](RC_Switch.jpg)](https://www.amazon.com/dp/B0065PASNI/ref=pe_309540_26725410_item)
+[![RF RC Switch](docs/RC_Switch.jpg)](https://www.amazon.com/dp/B0065PASNI/ref=pe_309540_26725410_item)
