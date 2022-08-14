@@ -4,7 +4,7 @@
     "files.associations": {
         "*.ino": "cpp"
     },
-    "particle.targetDevice": "RemoteSwitch",
+    "particle.targetDevice": "CloudSwitch",
     "particle.firmwareVersion": "3.3.0",
     "particle.targetPlatform": "photon"
 }

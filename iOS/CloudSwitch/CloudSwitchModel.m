@@ -11,8 +11,8 @@
 static const NSUInteger kNumberOfSwitch = 5;
 
 static NSString *const kCloudSwitchDeviceIDKey = @"CloudSwitchDeviceIDKey";
-static NSString *const kCloudSwitchNameKey = @"CloudSwitchNameKey";
-static NSString *const kCloudSwitchCodeKey = @"CloudSwitchCodeKey";
+static NSString *const kCloudSwitchNamesKey = @"names";
+static NSString *const kCloudSwitchCodesKey = @"codes";
 
 static NSString *const kCloudSwitchFunctionName = @"sendtristate";
 static NSString *const kCloudSwitchEventName = @"tristate-received";
@@ -96,11 +96,17 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 }
 
 - (void)restoreCloudSwitches {
-    NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-    for (NSUInteger i=0; i<kNumberOfSwitch; i++) {
-        _switchNames[i] = [userDefaults stringForKey:[kCloudSwitchNameKey stringByAppendingFormat:@"%lu", i]] ?: @"";
-        _switchCodes[i] = [userDefaults stringForKey:[kCloudSwitchCodeKey stringByAppendingFormat:@"%lu", i]] ?: @"";
+    if (!self.cloudSwitchDevice.id) {
+        [self resetCloudSwitches];
+        return;
     }
+    NSDictionary<NSString *, NSArray<NSString *> *> *switchConfig = [[NSUserDefaults standardUserDefaults] objectForKey:self.cloudSwitchDevice.id];
+    if (!switchConfig || switchConfig[kCloudSwitchNamesKey].count != kNumberOfSwitch || switchConfig[kCloudSwitchCodesKey].count != kNumberOfSwitch) {
+        [self resetCloudSwitches];
+        return;
+    }
+    _switchNames = [switchConfig[kCloudSwitchNamesKey] mutableCopy];
+    _switchCodes = [switchConfig[kCloudSwitchCodesKey] mutableCopy];
 }
 
 - (void)restoreCloudSwitchDevice {
@@ -163,11 +169,10 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 }
 
 - (void)updateSwitch:(NSUInteger)switchIndex withName:(NSString *)name tristateCode:(NSString *)tristateCode {
-    NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-    [userDefaults setObject:name forKey:[kCloudSwitchNameKey stringByAppendingFormat:@"%lu", switchIndex]];
-    [userDefaults setObject:tristateCode forKey:[kCloudSwitchCodeKey stringByAppendingFormat:@"%lu", switchIndex]];
     _switchNames[switchIndex] = name;
     _switchCodes[switchIndex] = tristateCode;
+    NSDictionary<NSString *, NSArray<NSString *>*> *switchConfig = @{kCloudSwitchNamesKey: _switchNames, kCloudSwitchCodesKey: _switchCodes};
+    [[NSUserDefaults standardUserDefaults] setObject:switchConfig forKey:self.cloudSwitchDevice.id];
     [self.delegate onSwitchStateChanged];
 }
 

@@ -14,6 +14,7 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
 @interface ViewController ()<CloudSwitchModelDelegate, UITextFieldDelegate>
 
 @property (weak, nonatomic) IBOutlet UIButton *loginButton;
+@property (weak, nonatomic) IBOutlet UILabel *deviceStatusLabel;
 @property (weak, nonatomic) IBOutlet UIActivityIndicatorView *busyIndicator;
 
 @property (weak, nonatomic) UITextField *switchNameTextField;
@@ -32,11 +33,18 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     // Do any additional setup after loading the view.
     self.cloudSwitchModel = [[CloudSwitchModel alloc] initWithDelegate:self];
     [self.cloudSwitchModel restoreCloudSwitchDevice];
+    [self.deviceStatusLabel addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(deviceStatusLabelTapped:)]];
+}
+
+- (void)deviceStatusLabelTapped:(id)senser {
+    if (self.cloudSwitchModel.availableDevices > 0) {
+        [self showDeviceSelectionAlert];
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     self.busyIndicator.hidden = YES;
-    [self updateButtons];
+    [self updateDeviceStatus];
 }
 
 - (void)onAuthenticationChanged {
@@ -45,7 +53,7 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
 }
 
 - (void)onSwitchStateChanged {
-    [self updateButtons];
+    [self updateDeviceStatus];
 }
 
 - (void)onReceiveSwitchCode:(NSString *)tristateCode {
@@ -53,14 +61,24 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     [self learnSwitchAlertTextFieldChanged:self];
 }
 
-- (void)updateButtons {
+- (void)updateDeviceStatus {
+    NSString *deviceName = self.cloudSwitchModel.cloudSwitchDevice.name;
     BOOL deviceConnected = self.cloudSwitchModel.cloudSwitchDeviceReachable;
+    if (deviceName) {
+        NSMutableAttributedString *attrStr = [[NSMutableAttributedString alloc] initWithString:deviceName attributes:@{NSUnderlineStyleAttributeName : @(NSUnderlineStyleSingle) }];
+        [attrStr appendAttributedString:[[NSAttributedString alloc] initWithString:deviceConnected ? @" is online." : @" is not reachable."]];
+        [attrStr addAttributes:@{NSForegroundColorAttributeName: deviceConnected ? UIColor.greenColor : UIColor.redColor} range:NSMakeRange(0, attrStr.length)];
+        self.deviceStatusLabel.attributedText = attrStr;
+    } else {
+        self.deviceStatusLabel.text = @"Device not selected";
+    }
     for (NSInteger i = 0; i < kNumberOfSwitch; i++) {
         UIButton *switchButton = (UIButton *)[self.view viewWithTag:i + 1];
         BOOL buttonAssigned = self.cloudSwitchModel.switchCodes[i].length > 0;
         [switchButton setTitle:buttonAssigned ? self.cloudSwitchModel.switchNames[i] : @"<Not Assigned>"
                       forState:UIControlStateNormal];
         switchButton.enabled = deviceConnected;
+        switchButton.hidden = deviceName == nil;
     }
 }
 
