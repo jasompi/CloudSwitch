@@ -27,4 +27,11 @@ Make sure the particle device with [Cloud Switch](../photon) is setup and connec
 7. To change the name or code for a button, long press the button again.
 8. To switch to a different Cloud Switch device, tap the Cloud Switch status label.
 
+## Dependency:
+
+* [Particle-SDK](https://github.com/particle-iot/particle-cloud-sdk-ios)
+* [AFNetworking](https://github.com/AFNetworking/AFNetworking)
+
+## Screenshots
+
 ![Cloud Switch](../docs/Cloud_Switch_iOS.png) ![Learn Switch Code](../docs/Cloud_Switch_Learn_Code.png) 

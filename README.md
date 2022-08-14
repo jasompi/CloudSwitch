@@ -1,18 +1,24 @@
-# Google Assistant controlled Remote Switch
+# Cloud Switch
 
-## Remote Control for RF 433MHz RC Outlet Switch using [Particle Photon](https://docs.particle.io/photon/)
+Cloud Swtich turns a RF 433MHz/315MHz Remote Control Outlet Switch into a iot Could Swtich that can be
+controlled over internet.
 
-The code could support most of the RF 433MHz RC Switch. To setup the switch:
+![Cloud Switch Diagram](docs/Cloud_Switch.png)
 
-* Build and flash the code to Photon
-* Go to [Particle devices console](https://console.particle.io/devices), click on the Photon device and go to the device page. (See screenshot below.)
-* Press a button on the Remote Control, the Photon RF receiver wlll decode the RF signal into tristate code and publish it to the device console.
-* Find the tristate-received event and copy the data string. E.g. `1F11FFF10000 162 1`
-* Paste the tristate code string to the input box for function *f* `sendtristate`, then click the "CALL" button
-* When Photon received the function call with the tristate code, it will replay the RF signal using the RF transmitter.
-* The Switch will toggle when receive the signal.
+## How does it work
 
-![Particle Device Console](docs/Particle_Console.png)
+1. When user press a button on the Remote Control, the Remote Control will send a radio signal
+at the frequency about 433MHz. The signal is used to toggle the switch.
+2. The RF receiver module decodes the radio signal and output tristate (H/L/Float) signal on the data pin.
+3. Photon reads the output of data pin and convert it into tristate code then publish it to partical cloud.
+4. The app on the cell phone subscribes to the tristate code then assigns it to a button.
+5. Later when user press the button in the app, the app will call a cloud function with the tristate code.
+6. Phonon handle the cloud function and send the tristate signal to the data pin of the RF transmitter.
+7. RF transmitter conver the tristate back to the radio signal and toggle the switch.
+
+## Build instructions:
+- Follow the README in [photon](./photon/) folder to setup the Photon device and build and flash the firmware.
+- Follow the README in [iOS](./iOS/) folder to build the iOS app.
 
 ## Integrate with Google Assistant using [IFTTT](https://ifttt.com/)
 
@@ -24,36 +30,3 @@ The code could support most of the RF 433MHz RC Switch. To setup the switch:
 
 ![IFTTT Applet](docs/IFTTT_Google_Assistant_Integration.png)
 
-## Button Control
-
-The big black button on the breadboard can be used to control the remote switch. 
-The tristate codes is hard coded in the source code as below. Single click the button toggle the first switch,
-double click toggle the second switch, triple click toggle the third switch, etc.
-If the n click then hold, it will toggle the first n switches.
-E.g. click, click, hold will toggle the first 3 switches
-```
-static const char* kSwitchCodes[] {
-  "1F11FFF00001 165 1",
-  "1F11FFF00010 165 1",
-  "1F11FFF00100 165 1",
-  "1F11FFF01000 165 1",
-  "1F11FFF10000 165 1",
-};
-```
-
-## HW setup
-
-* D0 connect to the RF433 transmitter Data Pin
-* D2 connect to one pin of the push button, the other pin of the push button connect to GND
-* D3 connect to the RF433 receiver Data Pin
-
-
-![Circuit Top](docs/Circuit_Top.png)
-
-![Circuit Front](docs/Circuit_Front.png)
-
-![Circuit Back](docs/Circuit_Back.png)
-
-## RC Switch
-
-[![RF RC Switch](docs/RC_Switch.jpg)](https://www.amazon.com/dp/B0065PASNI/ref=pe_309540_26725410_item)
