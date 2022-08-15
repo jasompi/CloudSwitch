@@ -2,7 +2,10 @@
     "extensions.ignoreRecommendations": true,
     "C_Cpp.default.configurationProvider": "particle.particle-vscode-core",
     "files.associations": {
-        "*.ino": "cpp"
+        "*.ino": "cpp",
+        "optional": "cpp",
+        "system_error": "cpp",
+        "typeinfo": "cpp"
     },
     "particle.targetDevice": "CloudSwitch",
     "particle.firmwareVersion": "3.3.0",

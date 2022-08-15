@@ -11,11 +11,15 @@
 static const NSUInteger kNumberOfSwitch = 5;
 
 static NSString *const kCloudSwitchDeviceIDKey = @"CloudSwitchDeviceIDKey";
-static NSString *const kCloudSwitchNamesKey = @"names";
-static NSString *const kCloudSwitchCodesKey = @"codes";
+static NSString *const kCloudSwitchConfigNamesKey = @"names";
+static NSString *const kCloudSwitchConfigCodesKey = @"codes";
+static NSString *const kCloudSwitchConfigTimestampKey = @"timestamp";
 
 static NSString *const kCloudSwitchFunctionName = @"sendtristate";
-static NSString *const kCloudSwitchEventName = @"tristate-received";
+static NSString *const kCloudSwitchTristateReceivedEvent = @"tristate-received";
+static NSString *const kCloudSwitchSetConfigFunctionName = @"setSwitchConfig";
+static NSString *const kCloudSwitchGetConfigVariableName = @"switchConfig";
+static NSString *const kCloudSwitchConfigChangedEvent = @"switchConfigChanged";
 
 static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 
@@ -26,17 +30,22 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 @interface CloudSwitchModel ()<ParticleDeviceDelegate> {
     NSMutableArray<NSString *> *_switchNames;
     NSMutableArray<NSString *> *_switchCodes;
+    int64_t _timestamp;
     ParticleDevice *_cloudSwitchDevice;
     BOOL _cloudSwitchDeviceReachable;
 }
 
 @property (weak, nonatomic) id<CloudSwitchModelDelegate> delegate;
 @property (copy, nonatomic) NSArray<ParticleDevice *> *availableDevices;
-@property (strong, nonatomic) id eventSubscriberId;
+@property (strong, nonatomic) id tristateReceivedEventSubscriberId;
+@property (strong, nonatomic) id switchConfigChangedEventSubscriberId;
+@property (strong, nonatomic) NSDictionary<NSString *, id> *switchConfig;
 
 @end
 
 @implementation CloudSwitchModel
+
+@dynamic switchConfig;
 
 - (NSUInteger)numberOfSwitches {
     return kNumberOfSwitch;
@@ -81,32 +90,114 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     self = [super init];
     if (self) {
         _delegate = delegate;
-        [self resetCloudSwitches];
+        [self loadSwitchConfig];
     }
     return self;
 }
 
-- (void)resetCloudSwitches {
+- (NSDictionary<NSString *, id> *)defaultSwitchConfig {
     NSString *emptyStrings[kNumberOfSwitch];
     for (NSUInteger i=0; i<kNumberOfSwitch; i++) {
         emptyStrings[i] = @"";
     }
-    _switchNames = [NSMutableArray<NSString *> arrayWithObjects:emptyStrings count:kNumberOfSwitch];
-    _switchCodes = [NSMutableArray<NSString *> arrayWithObjects:emptyStrings count:kNumberOfSwitch];
+    return @{
+        kCloudSwitchConfigNamesKey: [NSArray<NSString *> arrayWithObjects:emptyStrings count:kNumberOfSwitch],
+        kCloudSwitchConfigCodesKey: [NSArray<NSString *> arrayWithObjects:emptyStrings count:kNumberOfSwitch],
+        kCloudSwitchConfigTimestampKey: @(0),
+    };
 }
 
-- (void)restoreCloudSwitches {
-    if (!self.cloudSwitchDevice.id) {
-        [self resetCloudSwitches];
-        return;
+- (NSDictionary<NSString *, id> *)switchConfig {
+    return @{kCloudSwitchConfigNamesKey: _switchNames, kCloudSwitchConfigCodesKey: _switchCodes, kCloudSwitchConfigTimestampKey: @(_timestamp)};
+}
+
+- (void)setSwitchConfig:(NSDictionary<NSString *,id> *)switchConfig {
+    NSAssert([CloudSwitchModel isValidSwitchConfig:switchConfig], @"Invalid switch config: %@", switchConfig);
+    _switchNames = [switchConfig[kCloudSwitchConfigNamesKey] mutableCopy];
+    _switchCodes = [switchConfig[kCloudSwitchConfigCodesKey] mutableCopy];
+    _timestamp = [switchConfig[kCloudSwitchConfigTimestampKey] longLongValue];
+}
+
+- (void)sendSwitchConfig {
+    NSError *error;
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:self.switchConfig
+                                                       options:0
+                                                         error:&error];
+
+    if (!jsonData) {
+        NSLog(@"Coud not serialize config to json error: %@", error);
+    } else {
+        NSString *jsonConfig = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+        NSLog(@"Send switch config to '%@': %@", self.cloudSwitchDevice.name, jsonConfig);
+        [_cloudSwitchDevice callFunction:kCloudSwitchSetConfigFunctionName
+                           withArguments:@[jsonConfig]
+                              completion:^(NSNumber * _Nullable result, NSError * _Nullable error) {
+            if (error) {
+                NSLog(@"Failed to send switch config to '%@' error: %@", self.cloudSwitchDevice.name, error);
+                [self checkCloudSwitchDeviceReachable];
+            }
+        }];
     }
-    NSDictionary<NSString *, NSArray<NSString *> *> *switchConfig = [[NSUserDefaults standardUserDefaults] objectForKey:self.cloudSwitchDevice.id];
-    if (!switchConfig || switchConfig[kCloudSwitchNamesKey].count != kNumberOfSwitch || switchConfig[kCloudSwitchCodesKey].count != kNumberOfSwitch) {
-        [self resetCloudSwitches];
-        return;
+}
+
++ (BOOL)isValidSwitchConfig:(NSDictionary<NSString *, id> *)switchConfig {
+    if (!switchConfig) return NO;
+    if (![switchConfig[kCloudSwitchConfigNamesKey] isKindOfClass:[NSArray class]]) return NO;
+    if (![switchConfig[kCloudSwitchConfigCodesKey] isKindOfClass:[NSArray class]]) return NO;
+    if (![switchConfig[kCloudSwitchConfigTimestampKey] isKindOfClass:[NSNumber class]]) return NO;
+    return [switchConfig[kCloudSwitchConfigNamesKey] count] == kNumberOfSwitch && [switchConfig[kCloudSwitchConfigCodesKey] count] == kNumberOfSwitch;
+}
+
+- (void)saveSwitchConfig {
+    [[NSUserDefaults standardUserDefaults] setObject:self.switchConfig forKey:self.cloudSwitchDevice.id];
+}
+
+- (void)loadSwitchConfig {
+    NSDictionary<NSString *, id> *switchConfig = [self defaultSwitchConfig];
+    if (self.cloudSwitchDevice.id) {
+        NSDictionary<NSString *, id> *switchConfigFromUserDefaults = [[NSUserDefaults standardUserDefaults] objectForKey:self.cloudSwitchDevice.id];
+        if ([CloudSwitchModel isValidSwitchConfig:switchConfigFromUserDefaults]) {
+            switchConfig = switchConfigFromUserDefaults;
+        }
     }
-    _switchNames = [switchConfig[kCloudSwitchNamesKey] mutableCopy];
-    _switchCodes = [switchConfig[kCloudSwitchCodesKey] mutableCopy];
+    self.switchConfig = switchConfig;
+}
+
+- (void)syncSwitchConfig {
+    [_cloudSwitchDevice getVariable:kCloudSwitchGetConfigVariableName completion:^(id  _Nullable result, NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"Failed to get config variable error: %@", error);
+            [self checkCloudSwitchDeviceReachable];
+        } else {
+            if ([result isKindOfClass:[NSString class]]) {
+                NSString *jsonString = (NSString *)result;
+                NSData *jsonData = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+                NSError *jsonError = nil;
+                NSDictionary<NSString *, id> *switchConfig = [NSJSONSerialization JSONObjectWithData:jsonData
+                                                                                             options:0
+                                                                                               error:&jsonError];
+                if (jsonError) {
+                    NSLog(@"Failed to parse switchConfig from: %@", jsonString);
+                } else if ([CloudSwitchModel isValidSwitchConfig:switchConfig]) {
+                    uint64_t timestamp = [switchConfig[kCloudSwitchConfigTimestampKey] longLongValue];
+                    if (timestamp == self->_timestamp) {
+                        NSLog(@"Switch config is same.");
+                        return;
+                    } else if (timestamp > self->_timestamp) {
+                        NSLog(@"Local switch config is older.");
+                        self.switchConfig = switchConfig;
+                        [self saveSwitchConfig];
+                        [self.delegate onSwitchStateChanged];
+                        return;
+                    } else {
+                        NSLog(@"Local switch config is newer.");
+                    }
+                }
+                // Device switch config is invalid or older, send local switch config to device.
+                [self sendSwitchConfig];
+            }
+        }
+    }];
 }
 
 - (void)restoreCloudSwitchDevice {
@@ -120,6 +211,44 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     [self.delegate onAuthenticationChanged];
 }
 
+- (void)startListenForSwichConfigChanged {
+    NSAssert(!self.switchConfigChangedEventSubscriberId, @"Already listening for switchConfigChanged");
+    NSLog(@"Start listening for switchConfigChanged");
+    self.switchConfigChangedEventSubscriberId =
+        [_cloudSwitchDevice subscribeToEventsWithPrefix:kCloudSwitchConfigChangedEvent
+                                                handler:^(ParticleEvent * _Nullable event, NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"Failed to subscribe to switchConfigChanged event error: %@", error);
+        } else if ([event.event isEqualToString:kCloudSwitchConfigChangedEvent]) {
+            NSLog(@"Received event: %@ with data: %@", event.event, event.data);
+            int64_t timestamp = 0;
+            if ([event.data isKindOfClass:[NSString class]]) {
+                timestamp = [event.data longLongValue];
+            }
+            if (timestamp == self->_timestamp) {
+                NSLog(@"Switch config is same.");
+                return;
+            } else if (timestamp > self->_timestamp) {
+                NSLog(@"Local switch config is older.");
+                [self syncSwitchConfig];
+                return;
+            } else {
+                NSLog(@"Local switch config is newer.");
+                [self sendSwitchConfig];
+            }
+        }
+    }];
+}
+
+- (void)stopListenForSwichConfigChanged {
+    if (self.switchConfigChangedEventSubscriberId) {
+        NSLog(@"Stop listening for switchConfigChanged event");
+        [_cloudSwitchDevice unsubscribeFromEventWithID:self.tristateReceivedEventSubscriberId];
+        self.switchConfigChangedEventSubscriberId = nil;
+    }
+}
+
+
 - (void)seleteCloudSwitchDevice:(id<ParticleDevice>)cloudSwitchDevice {
     [self setCloudSwitchDevice:(ParticleDevice *)cloudSwitchDevice];
 }
@@ -127,12 +256,17 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 - (void)setCloudSwitchDevice:(ParticleDevice *)cloudSwitchDevice {
     if (_cloudSwitchDevice != cloudSwitchDevice) {
         [self stopListenForCode];
+        [self stopListenForSwichConfigChanged];
         _cloudSwitchDevice.delegate = nil;
         _cloudSwitchDevice = cloudSwitchDevice;
         _cloudSwitchDevice.delegate = self;
-        [self restoreCloudSwitches];
+        [self loadSwitchConfig];
         [[NSUserDefaults standardUserDefaults] setObject:_cloudSwitchDevice.id forKey:kCloudSwitchDeviceIDKey];
         self.cloudSwitchDeviceReachable = _cloudSwitchDevice.connected;
+        if (_cloudSwitchDevice.connected) {
+            [self syncSwitchConfig];
+        }
+        [self startListenForSwichConfigChanged];
         [self.delegate onSwitchStateChanged];
     }
 }
@@ -141,6 +275,9 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     if (event == ParticleDeviceSystemEventCameOnline || event == ParticleDeviceSystemEventWentOffline) {
         NSLog(@"%@ %@", device.name, device.connected ? @"came Online" : @"went Offline");
         self.cloudSwitchDeviceReachable = device.connected;
+        if (_cloudSwitchDevice.connected) {
+            [self syncSwitchConfig];
+        }
     }
 }
 
@@ -159,31 +296,38 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
             NSLog(@"Cloud switch device is%@ reachable.", result ? @"" : @" NOT");
             self.cloudSwitchDeviceReachable = result;
             if (result) {
-                // We will get notification when device came online. So only perfor check when device is alread online.
                 [self performSelector:@selector(checkCloudSwitchDeviceReachable)
                                withObject:nil
                                afterDelay:kCloudSwitchReachableCheckPeriod];
+            } else {
+                // We will usually get notification when device came online. But in case the notification lost
+                // we can do period check at a lower frequency.
+                [self performSelector:@selector(checkCloudSwitchDeviceReachable)
+                               withObject:nil
+                               afterDelay:kCloudSwitchReachableCheckPeriod * 5];
             }
         }
+
     }];
 }
 
 - (void)updateSwitch:(NSUInteger)switchIndex withName:(NSString *)name tristateCode:(NSString *)tristateCode {
     _switchNames[switchIndex] = name;
     _switchCodes[switchIndex] = tristateCode;
-    NSDictionary<NSString *, NSArray<NSString *>*> *switchConfig = @{kCloudSwitchNamesKey: _switchNames, kCloudSwitchCodesKey: _switchCodes};
-    [[NSUserDefaults standardUserDefaults] setObject:switchConfig forKey:self.cloudSwitchDevice.id];
+    _timestamp = (int64_t)[NSDate now].timeIntervalSince1970;
+    [[NSUserDefaults standardUserDefaults] setObject:self.switchConfig forKey:self.cloudSwitchDevice.id];
+    [self sendSwitchConfig];
     [self.delegate onSwitchStateChanged];
 }
 
 - (void)startListenForCode {
-    NSAssert(!self.eventSubscriberId, @"Already listening");
-    NSLog(@"Start listening for code");
-    self.eventSubscriberId = [_cloudSwitchDevice subscribeToEventsWithPrefix:kCloudSwitchEventName handler:^(ParticleEvent * _Nullable event, NSError * _Nullable error) {
+    NSAssert(!self.tristateReceivedEventSubscriberId, @"Already listening");
+    NSLog(@"Start listening for tristate code");
+    self.tristateReceivedEventSubscriberId = [_cloudSwitchDevice subscribeToEventsWithPrefix:kCloudSwitchTristateReceivedEvent handler:^(ParticleEvent * _Nullable event, NSError * _Nullable error) {
         if (error) {
-            NSLog(@"subscribe to events failed error: %@", error);
-        } else if ([event.event isEqualToString:kCloudSwitchEventName]) {
-            NSLog(@"received event: %@ with data: %@", event.event, event.data);
+            NSLog(@"Failed to subscribe to tristate-received event error: %@", error);
+        } else if ([event.event isEqualToString:kCloudSwitchTristateReceivedEvent]) {
+            NSLog(@"Received event: %@ with data: %@", event.event, event.data);
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self.delegate onReceiveSwitchCode:event.data];
             });
@@ -192,10 +336,10 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 }
 
 - (void)stopListenForCode {
-    if (self.eventSubscriberId) {
-        NSLog(@"Stop listening for code");
-        [_cloudSwitchDevice unsubscribeFromEventWithID:self.eventSubscriberId];
-        self.eventSubscriberId = nil;
+    if (self.tristateReceivedEventSubscriberId) {
+        NSLog(@"Stop listening for tristate code");
+        [_cloudSwitchDevice unsubscribeFromEventWithID:self.tristateReceivedEventSubscriberId];
+        self.tristateReceivedEventSubscriberId = nil;
     }
 }
 
@@ -242,7 +386,6 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     if (self.isAuthenticated) {
         [[NSUserDefaults standardUserDefaults] removePersistentDomainForName:[NSBundle mainBundle].bundleIdentifier];
         self.cloudSwitchDevice = nil;
-        [self resetCloudSwitches];
         [[ParticleCloud sharedInstance] logout];
         [self.delegate onAuthenticationChanged];
     }

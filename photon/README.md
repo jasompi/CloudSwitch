@@ -56,20 +56,13 @@ Now you can run the [Cloud Swtich iOS app](../ios) to setup and control the Clou
 
 ## Button Control
 
-The big black button on the breadboard can be used to control the remote switch. 
-Current the tristate codes is hard coded in the source code as below. Single click the button toggle the first switch,
-double click toggle the second switch, triple click toggle the third switch, etc.
-If the n click then hold, it will toggle the first n switches.
+The big black button on the breadboard can be used to toggle the switches. After you assign the tristate
+codes to the buttons in the iOS app, the configuration for the five buttons will be sent to the photons.
+If you click the button, Cloud Switch will send the tristate code to toggle the switch same as you press the button
+in the phone app. Single click the button toggle the first switch, double click toggle the second switch,
+triple click toggle the third switch, etc. If the N click then hold, it will toggle the first n switches.
 E.g. click, click, hold will toggle the first 3 switches
-```
-static const char* kSwitchCodes[] {
-  "1F11FFF00001 165 1",
-  "1F11FFF00010 165 1",
-  "1F11FFF00100 165 1",
-  "1F11FFF01000 165 1",
-  "1F11FFF10000 165 1",
-};
-```
+
 ![Particle Device Console](../docs/Particle_Console.png)
 
 

@@ -177,7 +177,7 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
 }
 
 - (void)showLogoutAlert {
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Sign out" message:@"Sign out will remove switch configurations on the phone." preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Sign out" message:@"Are you sure?" preferredStyle:UIAlertControllerStyleAlert];
     UIAlertAction *confirmAction = [UIAlertAction actionWithTitle:@"Sign out" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
         [self.cloudSwitchModel logout];
     }];
