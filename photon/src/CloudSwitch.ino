@@ -9,6 +9,38 @@ int buttonPin = D2;
 int inputPin = D3;
 int ledPin = D7;
 
+static String gSwitchConfig = "{}";
+static int gTimestamp = 0;
+static const size_t kMaxNumberOfSwitches = 5;
+static String gSwitchCodes[kMaxNumberOfSwitches];
+static bool gSwitchState[kMaxNumberOfSwitches];
+static int lastSwitchIndex = -1;
+static unsigned long lastSwitchTimestamp = 0;
+static const unsigned long kSwitchToggleTimeout = 450;
+
+static bool _getSwitchState(unsigned long switchIndex) {
+  return gSwitchState[switchIndex];
+}
+
+static bool _setSwitchState(int switchIndex, bool isOn) {
+  if (gSwitchState[switchIndex] != isOn) {
+    gSwitchState[switchIndex] = isOn;
+    Log.info("Switch %d state changed to %d", switchIndex, isOn);
+    Particle.publish("switchStateChanged",
+        String(switchIndex) + " " + String(isOn));
+  }
+  return isOn;
+}
+
+int switchIndexForCode(String code) {
+  for (int i = 0; i < kMaxNumberOfSwitches; i++) {
+    if (gSwitchCodes[i].startsWith(code)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static char *bin2tristate(char *bin) {
   static char returnValue[50];
   for (int i=0; i<50; i++) {
@@ -44,8 +76,19 @@ void output(unsigned long decimal, unsigned int length, unsigned int delay, unsi
     Log.trace("Decimal: %lu (%uBit) Binary: %s Tri-State: %s PulseLength: %u microseconds Protocol: %u",
               decimal, length, b, tristate, delay, protocol);
 
-    Particle.publish("tristate-received",
-        String(tristate) + " " + String(delay) + " " + String(protocol));
+    String tristateCode = String(tristate);
+    String switchCode = tristateCode + " " + String(delay) + " " + String(protocol);
+    unsigned long timestamp = millis();
+    if (timestamp - lastSwitchTimestamp > kSwitchToggleTimeout) {
+      Particle.publish("tristate-received", switchCode);
+    }
+    
+    int switchIndex = switchIndexForCode(tristateCode);
+    if (switchIndex >= 0 && (switchIndex != lastSwitchIndex || timestamp - lastSwitchTimestamp > kSwitchToggleTimeout)) {
+      _setSwitchState(switchIndex, !_getSwitchState(switchIndex));
+    }
+    lastSwitchIndex = switchIndex;
+    lastSwitchTimestamp = timestamp;
   }
 
   String rawData("Raw data: ");
@@ -56,17 +99,17 @@ void output(unsigned long decimal, unsigned int length, unsigned int delay, unsi
   Log.trace(rawData);
 }
 
-unsigned long sendTristate(String command) {
-  Log.info("sendtristate %s", command.c_str());
-  digitalWrite(ledPin, HIGH);
+int sendTristateCode(String command) {
+  Log.info("sendTristateCode %s", command.c_str());
   int pos = command.indexOf(' ');
   if (pos < 0) {
-    return 0;
+    return -1;
   }
   int pos2 = command.indexOf(' ', pos + 1);
   if (pos2 < 0) {
-    return 0;
+    return -1;
   }
+  digitalWrite(ledPin, HIGH);
   String triState = command.substring(0, pos);
   int pulseLength = command.substring(pos+1, pos2).toInt();
   int protocol = command.substring(pos2 + 1).toInt();
@@ -82,13 +125,9 @@ unsigned long sendTristate(String command) {
   mySwitch.sendTriState((char *)triStateChars);
   unsigned long elapsed = micros() - begin;
   digitalWrite(ledPin, LOW);
+  Log.info("sendTriStateCode in %lu microsecond", elapsed);
   return elapsed;
 }
-
-static String gSwitchConfig = "{}";
-static int gTimestamp = 0;
-static const size_t kMaxNumberOfSwitches = 5;
-static String gSwitchCodes[kMaxNumberOfSwitches];
 
 int setSwitchConfig(String switchConfig) {
     JSONValue jsonObj = JSONValue::parseCopy(switchConfig);
@@ -121,6 +160,102 @@ String switchConfig() {
   return gSwitchConfig;
 }
 
+unsigned long _toggleSwitch(int switchIndex) {
+  Log.info("_toggleSwitch switchIndex=%d", switchIndex);
+  if (switchIndex < 0 || switchIndex >= kMaxNumberOfSwitches) {
+    return -1;
+  }
+  unsigned long result = sendTristateCode(gSwitchCodes[switchIndex]);
+  if (result <= 0) {
+    return -1;
+  } 
+  return _setSwitchState(switchIndex, !_getSwitchState(switchIndex));
+}
+
+int toggleSwitch(String switchIndex) {
+  if (switchIndex.length() == 0 || !isdigit(switchIndex.charAt(0))) {
+    return -1;
+  }
+  Log.info("toggleSwitch: %s", switchIndex.c_str());
+  return _toggleSwitch(switchIndex.toInt());
+}
+
+int turnOnSwitch(String command) {
+  if (command.length() == 0 || !isdigit(command.charAt(0))) {
+    return -1;
+  }
+  int switchIndex = command.toInt();
+  if (switchIndex < 0 || switchIndex >= kMaxNumberOfSwitches) {
+    return -1;
+  }
+  Log.info("turnOnSwitch: %d", switchIndex);
+  if (!_getSwitchState(switchIndex)) {
+    _toggleSwitch(switchIndex);
+  }
+  return 1;
+}
+
+int turnOffSwitch(String command) {
+  if (command.length() == 0 || !isdigit(command.charAt(0))) {
+    return -1;
+  }
+  int switchIndex = command.toInt();
+  if (switchIndex < 0 || switchIndex >= kMaxNumberOfSwitches) {
+    return -1;
+  }
+  Log.info("turnOffSwitch: %d", switchIndex);
+  if (_getSwitchState(switchIndex)) {
+    _toggleSwitch(switchIndex);
+  }
+  return 0;
+}
+
+String switchesState() {
+  String switchState;
+  for (int i = 0; i < kMaxNumberOfSwitches; i++) {
+    switchState += String(gSwitchState[i]);
+    if (i < kMaxNumberOfSwitches - 1) {
+      switchState += " ";
+    }
+  }
+  return switchState;
+}
+
+int sendTristate(String command) {
+  Log.info("sendTristate %s", command.c_str());
+  int switchIndex = switchIndexForCode(command);
+  if (switchIndex >= 0) {
+      return _toggleSwitch(switchIndex);
+  }
+  return sendTristateCode(command);
+}
+
+int setSwitchState(String command) {
+  Log.info("setSwitchState %s", command.c_str());
+  int pos = command.indexOf(' ');
+  if (pos < 0) {
+    return -1;
+  }
+  int switchIndex = command.substring(0, pos).toInt();
+  bool isOn = command.substring(pos+1).toInt() != 0;
+  if (switchIndex < 0 || switchIndex >= kMaxNumberOfSwitches) {
+    return -1;
+  }
+  return _setSwitchState(switchIndex, isOn);
+}
+
+int getSwitchState(String command) {
+  Log.info("setSwitchState %s", command.c_str());
+  if (command.length() == 0 || !isdigit(command.charAt(0))) {
+    return -1;
+  }
+  int switchIndex = command.toInt();
+  if (switchIndex < 0 || switchIndex >= kMaxNumberOfSwitches) {
+    return -1;
+  }
+  return _getSwitchState(switchIndex);
+}
+
 ClickButton button(buttonPin, LOW, CLICKBTN_PULLUP);
 
 void setup() {
@@ -145,9 +280,15 @@ void setup() {
   // Register function
   Particle.function("sendtristate", sendTristate);
   Particle.function("setSwitchConfig", setSwitchConfig);
+  Particle.function("toggleSwitch", toggleSwitch);
+  Particle.function("turnOnSwitch", turnOnSwitch);
+  Particle.function("turnOffSwitch", turnOffSwitch);
+  Particle.function("setSwitchState", setSwitchState);
+  Particle.function("getSwitchState", getSwitchState);
 
   // Register variable
   Particle.variable("switchConfig", switchConfig);
+  Particle.variable("switchState", switchesState);
 }
 
 void loop() {
@@ -155,7 +296,7 @@ void loop() {
     digitalWrite(ledPin, HIGH);
     output(mySwitch.getReceivedValue(), mySwitch.getReceivedBitlength(), mySwitch.getReceivedDelay(), mySwitch.getReceivedRawdata(), mySwitch.getReceivedProtocol());
     mySwitch.resetAvailable();
-    delay(300);
+    delay(50);
     digitalWrite(ledPin, LOW);
   }
     // Update button state
@@ -165,7 +306,7 @@ void loop() {
   if (clicks < 0) {
     Log.info("LONG CLICK %d", -clicks);
     for (int i = 0; i < min(kMaxNumberOfSwitches, (unsigned)-clicks); i++) {
-      unsigned long elapsed = sendTristate(gSwitchCodes[i]);
+      unsigned long elapsed = _toggleSwitch(i);
       Log.info("Toggle switch %d takes %lu microseconds.", i+1, elapsed);
       delay(10);
     }
@@ -173,7 +314,7 @@ void loop() {
     button.clicks = 0;
   } else if (clicks > 0 && clicks <= kMaxNumberOfSwitches) {
     Log.info("CLICK %d", clicks);
-    unsigned long elapsed = sendTristate(gSwitchCodes[clicks - 1]);
+    unsigned long elapsed = _toggleSwitch(clicks - 1);
     Log.info("Toggle switch %d takes %lu microseconds.", clicks, elapsed);
   }
   delay(5);

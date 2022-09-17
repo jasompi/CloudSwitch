@@ -1,0 +1,5 @@
+.DS_Store
+iOS/CloudSwitch.xcworkspace/
+iOS/Pods/
+photon/src/CloudSwitch.cpp
+photon/target/

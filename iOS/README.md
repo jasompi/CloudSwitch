@@ -1,6 +1,6 @@
 # Cloud Switch iOS App
 
-The iOS app work as remote control for the [Cloud Switch](../). 
+The iOS app is used to configure the Remote Switch Hub. It also works as remote control for the [Cloud Switch](../). 
 
 ## Build instruction
 
@@ -27,6 +27,12 @@ Make sure the particle device with [Cloud Switch](../photon) is setup and connec
 7. To change the name or code for a button, long press the button again.
 8. To switch to a different Cloud Switch device, tap the Cloud Switch status label.
 
+## Sync switch state
+
+If the current switch state in app does not match state on the physical switch, user can set the
+state of the switch by long press the switch button, then choose the "Set state to ON|OFF". This
+will change the switch state in Cloud Switch Hub without turn on/off the switch.
+
 ## Dependency:
 
 * [Particle-SDK](https://github.com/particle-iot/particle-cloud-sdk-ios)
@@ -34,4 +40,4 @@ Make sure the particle device with [Cloud Switch](../photon) is setup and connec
 
 ## Screenshots
 
-![Cloud Switch](../docs/Cloud_Switch_iOS.png) ![Learn Switch Code](../docs/Cloud_Switch_Learn_Code.png) 
+![Cloud Switch](../docs/Cloud_Switch_iOS.png) ![Learn Switch Code](../docs/Cloud_Switch_Learn_Code.png) ![Set Switch State](../docs/Cloud_Switch_Set_State.png)

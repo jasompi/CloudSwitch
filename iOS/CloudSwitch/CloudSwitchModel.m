@@ -6,7 +6,9 @@
 //
 
 #import "CloudSwitchModel.h"
-#include "Particle-SDK.h"
+#import "Particle-SDK.h"
+
+#import <UIKit/UIKit.h>
 
 static const NSUInteger kNumberOfSwitch = 5;
 
@@ -20,6 +22,10 @@ static NSString *const kCloudSwitchTristateReceivedEvent = @"tristate-received";
 static NSString *const kCloudSwitchSetConfigFunctionName = @"setSwitchConfig";
 static NSString *const kCloudSwitchGetConfigVariableName = @"switchConfig";
 static NSString *const kCloudSwitchConfigChangedEvent = @"switchConfigChanged";
+static NSString *const kCloudSwitchToggleSwitchFunction = @"toggleSwitch";
+static NSString *const kCloudSwitchSetSwitchStateFunction = @"setSwitchState";
+static NSString *const kCloudSwitchSwitchStateVariableName = @"switchState";
+static NSString *const kCloudSwitchSwitchStateChangedEvent = @"switchStateChanged";
 
 static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 
@@ -30,6 +36,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 @interface CloudSwitchModel ()<ParticleDeviceDelegate> {
     NSMutableArray<NSString *> *_switchNames;
     NSMutableArray<NSString *> *_switchCodes;
+    BOOL _switchStates[kNumberOfSwitch];
     int64_t _timestamp;
     ParticleDevice *_cloudSwitchDevice;
     BOOL _cloudSwitchDeviceReachable;
@@ -39,6 +46,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 @property (copy, nonatomic) NSArray<ParticleDevice *> *availableDevices;
 @property (strong, nonatomic) id tristateReceivedEventSubscriberId;
 @property (strong, nonatomic) id switchConfigChangedEventSubscriberId;
+@property (strong, nonatomic) id switchStateChangedEventSubscriberId;
 @property (strong, nonatomic) NSDictionary<NSString *, id> *switchConfig;
 
 @end
@@ -69,7 +77,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
                                withObject:nil
                                afterDelay:kCloudSwitchReachableCheckPeriod];
             }
-            [self.delegate onSwitchStateChanged];
+            [self.delegate onSwitchConfigChanged];
         }
     });
 }
@@ -91,8 +99,31 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     if (self) {
         _delegate = delegate;
         [self loadSwitchConfig];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(applicationDidBecomeActive)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(applicationDidEnterBackground)
+                                                     name:UIApplicationDidEnterBackgroundNotification
+                                                   object:nil];
     }
     return self;
+}
+
+- (void)applicationDidBecomeActive {
+    if (_cloudSwitchDevice != nil) {
+        [self syncSwitchState];
+        [self startListenForSwichStateChanged];
+        [self startListenForSwichConfigChanged];
+    }
+}
+
+- (void)applicationDidEnterBackground {
+    if (_cloudSwitchDevice != nil) {
+        [self stopListenForSwichStateChanged];
+        [self stopListenForSwichConfigChanged];
+    }
 }
 
 - (NSDictionary<NSString *, id> *)defaultSwitchConfig {
@@ -136,6 +167,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
                 NSLog(@"Failed to send switch config to '%@' error: %@", self.cloudSwitchDevice.name, error);
                 [self checkCloudSwitchDeviceReachable];
             }
+            
         }];
     }
 }
@@ -187,7 +219,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
                         NSLog(@"Local switch config is older.");
                         self.switchConfig = switchConfig;
                         [self saveSwitchConfig];
-                        [self.delegate onSwitchStateChanged];
+                        [self.delegate onSwitchConfigChanged];
                         return;
                     } else {
                         NSLog(@"Local switch config is newer.");
@@ -195,6 +227,52 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
                 }
                 // Device switch config is invalid or older, send local switch config to device.
                 [self sendSwitchConfig];
+            }
+        }
+    }];
+}
+
+- (BOOL)switchState:(NSUInteger)switchIndex {
+    return _switchStates[switchIndex];
+}
+
+- (void)setSwitchState:(NSUInteger)switchIndex isOn:(BOOL)isOn {
+    if (_switchStates[switchIndex] != isOn) {
+        [_cloudSwitchDevice callFunction:kCloudSwitchSetSwitchStateFunction
+                           withArguments:@[[NSString stringWithFormat:@"%lu %d", switchIndex, isOn]]
+                              completion:^(NSNumber * _Nullable result, NSError * _Nullable error) {
+            if (error) {
+                NSLog(@"Failed to set switch state error: %@", error);
+                [self checkCloudSwitchDeviceReachable];
+            } else {
+                int state = result.intValue;
+                if (state >= 0) {
+                    [self updateSwitch:switchIndex withState:state];
+                }
+            }
+        }];
+    }
+}
+
+- (void)updateSwitch:(NSUInteger)switchIndex withState:(BOOL)isOn {
+    if (_switchStates[switchIndex] != isOn) {
+        _switchStates[switchIndex] = isOn;
+        [self.delegate onSwitchStateChanged:switchIndex isOn:isOn];
+    }
+}
+
+- (void)syncSwitchState {
+    [_cloudSwitchDevice getVariable:kCloudSwitchSwitchStateVariableName completion:^(id  _Nullable result, NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"Failed to get config variable error: %@", error);
+            [self checkCloudSwitchDeviceReachable];
+        } else {
+            if ([result isKindOfClass:[NSString class]]) {
+                NSString *stateString = (NSString *)result;
+                NSArray<NSString *> *states = [stateString componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+                [states enumerateObjectsUsingBlock:^(NSString * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+                    [self updateSwitch:idx withState:obj.boolValue];
+                }];
             }
         }
     }];
@@ -243,11 +321,44 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 - (void)stopListenForSwichConfigChanged {
     if (self.switchConfigChangedEventSubscriberId) {
         NSLog(@"Stop listening for switchConfigChanged event");
-        [_cloudSwitchDevice unsubscribeFromEventWithID:self.tristateReceivedEventSubscriberId];
+        [_cloudSwitchDevice unsubscribeFromEventWithID:self.switchConfigChangedEventSubscriberId];
         self.switchConfigChangedEventSubscriberId = nil;
     }
 }
 
+- (void)startListenForSwichStateChanged {
+    NSAssert(!self.switchStateChangedEventSubscriberId, @"Already listening for switchStateChanged");
+    NSLog(@"Start listening for switchStateChanged");
+    self.switchStateChangedEventSubscriberId =
+        [_cloudSwitchDevice subscribeToEventsWithPrefix:kCloudSwitchSwitchStateChangedEvent
+                                                handler:^(ParticleEvent * _Nullable event, NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"Failed to subscribe to switchStateChanged event error: %@", error);
+        } else if ([event.event isEqualToString:kCloudSwitchSwitchStateChangedEvent]) {
+            NSLog(@"Received event: %@ with data: %@", event.event, event.data);
+            NSArray<NSString *> *valueStr = [event.data componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+            if (valueStr.count != 2) {
+                NSLog(@"Inavlid data in switchStateChanged event");
+                return;
+            }
+            NSInteger switchIndex = valueStr[0].integerValue;
+            BOOL switchState = valueStr[1].boolValue;
+            if (switchIndex < 0 || switchIndex >= kNumberOfSwitch) {
+                NSLog(@"Inavlid switchIndex in switchStateChanged event");
+                return;
+            }
+            [self updateSwitch:switchIndex withState:switchState];
+        }
+    }];
+}
+
+- (void)stopListenForSwichStateChanged {
+    if (self.switchStateChangedEventSubscriberId) {
+        NSLog(@"Stop listening for switchStateChanged event");
+        [_cloudSwitchDevice unsubscribeFromEventWithID:self.switchStateChangedEventSubscriberId];
+        self.switchStateChangedEventSubscriberId = nil;
+    }
+}
 
 - (void)seleteCloudSwitchDevice:(id<ParticleDevice>)cloudSwitchDevice {
     [self setCloudSwitchDevice:(ParticleDevice *)cloudSwitchDevice];
@@ -256,6 +367,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
 - (void)setCloudSwitchDevice:(ParticleDevice *)cloudSwitchDevice {
     if (_cloudSwitchDevice != cloudSwitchDevice) {
         [self stopListenForCode];
+        [self stopListenForSwichStateChanged];
         [self stopListenForSwichConfigChanged];
         _cloudSwitchDevice.delegate = nil;
         _cloudSwitchDevice = cloudSwitchDevice;
@@ -265,9 +377,11 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
         self.cloudSwitchDeviceReachable = _cloudSwitchDevice.connected;
         if (_cloudSwitchDevice.connected) {
             [self syncSwitchConfig];
+            [self syncSwitchState];
         }
         [self startListenForSwichConfigChanged];
-        [self.delegate onSwitchStateChanged];
+        [self startListenForSwichStateChanged];
+        [self.delegate onSwitchConfigChanged];
     }
 }
 
@@ -317,7 +431,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     _timestamp = (int64_t)[NSDate now].timeIntervalSince1970;
     [[NSUserDefaults standardUserDefaults] setObject:self.switchConfig forKey:self.cloudSwitchDevice.id];
     [self sendSwitchConfig];
-    [self.delegate onSwitchStateChanged];
+    [self.delegate onSwitchConfigChanged];
 }
 
 - (void)startListenForCode {
@@ -395,12 +509,17 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     NSAssert(switchIndex < kNumberOfSwitch, @"Invalid switchIndex: %lu", switchIndex);
     if (self.switchCodes[switchIndex].length) {
         NSLog(@"Switch %ld toggled", switchIndex);
-        [_cloudSwitchDevice callFunction:kCloudSwitchFunctionName
-                            withArguments:@[self.switchCodes[switchIndex]]
+        [_cloudSwitchDevice callFunction:kCloudSwitchToggleSwitchFunction
+                            withArguments:@[@(switchIndex)]
                                completion:^(NSNumber * _Nullable result, NSError * _Nullable error) {
             if (error) {
                 NSLog(@"Failed to toggle switch %ld error: %@", switchIndex, error);
                 [self checkCloudSwitchDeviceReachable];
+            } else {
+                int state = result.intValue;
+                if (state >= 0) {
+                    [self updateSwitch:switchIndex withState:state];
+                }
             }
             completion(error);
         }];

@@ -1,4 +1,4 @@
-# Cloud Switch Photon Setup
+# Cloud Switch Hub Setup
 
 ## HW Setup
 
@@ -18,7 +18,7 @@ Push Button is optional.
 - D2 connect to pin on one end of the  button.
 - GND connect to pin on the other end of the button.
 
-Refer to the pictures below:
+Refer to the [HW pictures](#hw-pictures) below.
 
 ## Photon Setup
 
@@ -52,6 +52,8 @@ to install the IDE (VS Code + Particle Workbench).
 - When Photon received the function call with the tristate code, it will replay the RF signal using the RF transmitter.
 - The Switch will toggle when receive the signal.
 
+![Particle Device Console](../docs/Particle_Console.png)
+
 Now you can run the [Cloud Swtich iOS app](../ios) to setup and control the Cloud Swtiches using your phone.
 
 ## Button Control
@@ -61,9 +63,85 @@ codes to the buttons in the iOS app, the configuration for the five buttons will
 If you click the button, Cloud Switch will send the tristate code to toggle the switch same as you press the button
 in the phone app. Single click the button toggle the first switch, double click toggle the second switch,
 triple click toggle the third switch, etc. If the N click then hold, it will toggle the first n switches.
-E.g. click, click, hold will toggle the first 3 switches
+E.g. click, click, hold will toggle the first 3 switches.
 
-![Particle Device Console](../docs/Particle_Console.png)
+## Switch Configuration
+
+The following Particle Cloud Functions are used to support configure the Cloud Switch Hub:
+
+- `tristate-received`: 
+
+  Event published when Photon detect a RF signal. 
+  
+  e.g. `tristate-received "1F11FFF00001 165 1"`
+  
+- `setSwitchConfig`: 
+
+  Cloud function to set the configuration for switches. Switch configuration is a JSON contains name and code of
+  switches and a timestamp. The switch configuration is only updated if the received timestamp is newer than the
+  current configuration timestamp
+  
+  e.g. ` {"names":["Family Room","Living Room","Switch 3","Switch 4","Chrismas Tree"],"codes":["1F11FFF00001 166 1","1F11FFF00010 166 1","1F11FFF00100 166 1","1F11FFF01000 166 1","1F11FFF10000 165 1"],"timestamp":1660583150}`
+  
+- `switchConfig`:
+ 
+  Cloud variable to retrieve the switch configuration in JSON.
+
+- `switchConfigChanged`: 
+  
+  Event published when switch configuration is updated. The new timestamp is included in the event data.
+  e.g. `switchConfigChanged 1660583150`
+
+## Switch State tracking
+
+The RF controlled Switch can only recieve the RF signal to toggle the switch. There is no way to retrieve the 
+current on/off state of the switch. To support state traking, the user need to manually sync the initial on/off
+state of the switch with the state keep tracked by Photon. After that, the photon can update the state based on
+the RF signal it received and sent. However if the switch is turn on/off manually on the switch, the state will
+out of sync. The following Cloud Functions can be used to turn on/off switches and sync switch state.
+
+### Cloud functions
+
+These cloud function will return the new state for the switch. 0: OFF; 1: ON; -1: the input is invalid or switchIndex out of range. 
+
+- `setSwitchState <switchIndex> <new switch state>`
+
+  Set the switch state to the new state without send switch code (RF signal) to the switch. Use to sync the switch state.
+  
+- `getSwitchState <switchIndex>`
+
+  Get the current switch state.
+  
+- `turnOnSwitch <switchIndex>`
+
+  Send RF signal to the switch and update the state to ON if the current state is OFF.
+
+- `turnOffSwitch <switchIndex>`
+
+  Send RF signal to the switch and update the state to OFF if the current state is OFF.
+  
+- `toggleSwitch <switchIndex>`
+
+  Send RF signal to the switch and update the state.
+
+- `sendtristate <tristatecode>`
+
+  This can be used to send RF single for the code passed in. If the tristatecode match any code in
+  switch configuration, the switch state will still get updated. If the code doesn't match any configuration,
+  the code will be send as is.
+
+### Cloud variable
+
+- `switchState`
+
+  Return the state of all switches as a string seperated by space . E.g. `1 0 0 0 0`
+  
+### Event
+
+- `switchStateChanged`
+
+  Published when a switch's state is changed. The data is index of the switch and the new state.
+  E.g. `0 1` when switch 0 is turned on.
 
 
 ## Dependency:
@@ -72,6 +150,7 @@ E.g. click, click, hold will toggle the first 3 switches
 - [clickButton](https://github.com/pkourany/clickButton)
 
 
+<a name="hw-pictures"></a>
 ## HW pictures
 
 ![Circuit Top](../docs/Circuit_Top.png)

@@ -12,7 +12,8 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol CloudSwitchModelDelegate <NSObject>
 
 - (void)onAuthenticationChanged;
-- (void)onSwitchStateChanged;
+- (void)onSwitchConfigChanged;
+- (void)onSwitchStateChanged:(NSUInteger)switchIndex isOn:(BOOL)isOn;
 - (void)onReceiveSwitchCode:(NSString *)tristateCode;
 
 @end
@@ -45,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)toggleSwitch:(NSUInteger)switchIndex completion:(void (^)(NSError * _Nullable))completion;
 - (void)updateSwitch:(NSUInteger)switchIndex withName:(NSString *)name tristateCode:(NSString *)tristateCode;
+
+- (BOOL)switchState:(NSUInteger)switchIndex;
+- (void)setSwitchState:(NSUInteger)switchIndex isOn:(BOOL)isOn;
 
 - (void)startListenForCode;
 - (void)stopListenForCode;

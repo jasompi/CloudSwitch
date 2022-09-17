@@ -52,8 +52,15 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
                       forState:UIControlStateNormal];
 }
 
-- (void)onSwitchStateChanged {
+- (void)onSwitchConfigChanged {
     [self updateDeviceStatus];
+}
+
+- (void)onSwitchStateChanged:(NSUInteger)switchIndex isOn:(BOOL)isOn {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIButton *switchButton = (UIButton *)[self.view viewWithTag:switchIndex + 1];
+        [switchButton setSelected:isOn];
+    });
 }
 
 - (void)onReceiveSwitchCode:(NSString *)tristateCode {
@@ -75,8 +82,11 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     for (NSInteger i = 0; i < kNumberOfSwitch; i++) {
         UIButton *switchButton = (UIButton *)[self.view viewWithTag:i + 1];
         BOOL buttonAssigned = self.cloudSwitchModel.switchCodes[i].length > 0;
-        [switchButton setTitle:buttonAssigned ? self.cloudSwitchModel.switchNames[i] : @"<Not Assigned>"
+        NSString *switchName = self.cloudSwitchModel.switchNames[i];
+        [switchButton setTitle:buttonAssigned ? switchName : @"<Not Assigned>"
                       forState:UIControlStateNormal];
+        [switchButton setTitle:[@"💡" stringByAppendingString:buttonAssigned ? switchName : @"<Not Assigned>"]
+                      forState:UIControlStateSelected];
         switchButton.enabled = deviceConnected;
         switchButton.hidden = deviceName == nil;
     }
@@ -149,7 +159,9 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
         textField.delegate = self;
         self.switchCodeTextField = textField;
     }];
-    UIAlertAction *assignSwitchAction = [UIAlertAction actionWithTitle:@"Assign" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+    UIAlertAction *assignSwitchAction = [UIAlertAction actionWithTitle:@"Assign"
+                                                                 style:UIAlertActionStyleDefault
+                                                               handler:^(UIAlertAction * _Nonnull action) {
         NSString *switchName = [alertController textFields][0].text;
         NSString *switchCode = [alertController textFields][1].text;
         NSAssert(switchName.length && switchCode.length, @"Switch name or code not set");
@@ -159,6 +171,17 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     [alertController addAction:assignSwitchAction];
     self.assignSwitchAction = assignSwitchAction;
     [self learnSwitchAlertTextFieldChanged:self];
+    if (assignSwitchAction.isEnabled) {
+        bool isOn = [self.cloudSwitchModel switchState:switchIndex];
+        UIAlertAction *changeStateAction = [UIAlertAction actionWithTitle:isOn ? @"Set state to OFF" : @"Set state to ON"
+                                                                    style:UIAlertActionStyleDefault
+                                                                  handler:^(UIAlertAction * _Nonnull action) {
+            [self.cloudSwitchModel setSwitchState:switchIndex isOn:!isOn];
+            [self.cloudSwitchModel stopListenForCode];
+        }];
+        [alertController addAction:changeStateAction];
+    }
+
     UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
         NSLog(@"Canelled");
         [self.cloudSwitchModel stopListenForCode];
