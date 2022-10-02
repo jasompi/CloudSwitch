@@ -119,7 +119,7 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     if (self.buttonLongPressedBlock) {
         dispatch_block_cancel(self.buttonLongPressedBlock);
         self.buttonLongPressedBlock = nil;
-        if ([self.cloudSwitchModel toggleSwitch:switchIndex completion:^(NSError * _Nullable) {
+        if ([self.cloudSwitchModel toggleSwitch:switchIndex completion:^(NSError * _Nullable error) {
             switchButton.enabled = YES;
         }]) {
             switchButton.enabled = NO;
@@ -180,6 +180,14 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
             [self.cloudSwitchModel stopListenForCode];
         }];
         [alertController addAction:changeStateAction];
+        
+        UIAlertAction *unassignAction = [UIAlertAction actionWithTitle:@"Unassign"
+                                                                 style:UIAlertActionStyleDestructive
+                                                               handler:^(UIAlertAction * _Nonnull action) {
+            [self.cloudSwitchModel updateSwitch:switchIndex withName:@"" tristateCode:@""];
+            [self.cloudSwitchModel stopListenForCode];
+        }];
+        [alertController addAction:unassignAction];
     }
 
     UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
