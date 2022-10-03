@@ -1,7 +1,7 @@
 # Cloud Switch
 
 Cloud Swtich turns a RF 433MHz/315MHz Remote Control Switch Outlet into a Smart Swtich that can be
-controlled over internet using cell phone app or Google Assistant.
+controlled over internet using cell phone app, Apple Home App/Siri or Google Assistant.
 
 ![Cloud Switch Diagram](docs/Cloud_Switch.png)
 
@@ -21,12 +21,12 @@ at the frequency about 433MHz. The signal is used to toggle the switch.
 7. RF transmitter convert the tristate code back to the radio signal and toggle the switch.
 
 
-## Build instructions:
+## Build instructions
 
 - Follow the README in [photon](./photon/) folder to setup the Cloud Switch Hub then build and flash the firmware.
 - Follow the README in [iOS](./iOS/) folder to build the iOS app.
 
-## Switch Configuration Sync.
+## Switch Configuration Sync
 
 The latest firmware and iOS app support sync switch configurations between multiple iOS apps and the Cloud Switch Hub.
 If you setup or update the switch configuration in one iOS app for a connected Cloud Switch device, the names and codes assigned to
@@ -44,14 +44,30 @@ state change by listening to RF contorl signal sent by physical remote or tracki
 Switch state can be retrieved using cloud function or variable and state change will be published as a event.
 Detail can be found in [photon README](./photon/README.md).
 
+## Integration with Apple Home App through Homebridge
 
-## Integrate with Google Assistant using [IFTTT](https://ifttt.com/)
+The Cloud Switch can be integrated with [Apple Home App](https://www.apple.com/home-app/) through the [Homebridge](https://homebridge.io/) with the [Homebridge Cloud Switch Plugin](https://github.com/jasompi/homebridge-plugin-cloud-switch).
 
-* Go to [IFTTT](https://ifttt.com/) and create an IFTTT Applet
-* Set IF condition to 'Say a simple phrase'. E.g. "Turn on light in family room"
-* Set Action to call Particle function. `{"label":"core_function","value":"RemoteSwitch:::sendtristate"}`
-* Set Input to the tristate code string. e.g. `1F11FFF00001 165 1`
-* Now say the phrase to Google Assistant and the Photon will response and toggle the switch.
+1. Follow the [Homebridge installation intructions](https://github.com/homebridge/homebridge/wiki) to install Homebridge.
+2. Follow the Homebridge Cloud Switch Plugin [Installation](https://github.com/jasompi/homebridge-plugin-cloud-switch#installation) and [Configuration](https://github.com/jasompi/homebridge-plugin-cloud-switch#configuration) to set up the Cloud Switch Plugin.
+3. Pair the Homebridge with your Apple Home. After that the Cloud Switches setup in the iOS app will show up in Apple Home App.
+
+![Apple Home App](docs/AppleHome_CloudSwitch.png)
+
+## Integrate with Google Home/Assistant
+
+There are two ways to integrate with Google Assistent: using the Homebridge [Google Smart Home Plugin](https://github.com/oznu/homebridge-gsh) or using the [IFTTT](https://ifttt.com/)
+
+### Integrate using Homebridge Google Smart Home Plugin
+
+If you setup the [Homebridge Cloud Switch Plugin](https://github.com/jasompi/homebridge-plugin-cloud-switch). Then you just need to install the [Homebridge Google Smart Home (GSH) Plugin](https://github.com/oznu/homebridge-gsh). In you Google Home App, add new device work with Google and search for Homebridge. After link the Homebridge, all Cloud Switch exposed in Homebridge will be availabe in Google Home App.
+
+### Integrate using [IFTTT](https://ifttt.com/)
+
+- Go to [IFTTT](https://ifttt.com/) and create an IFTTT Applet
+- Set IF condition to 'Say a simple phrase'. E.g. "Turn on light in family room"
+- Set Action to call Particle function. `{"label":"core_function","value":"RemoteSwitch:::sendtristate"}`
+- Set Input to the tristate code string. e.g. `1F11FFF00001 165 1`
+- Now say the phrase to Google Assistant and the Photon will response and toggle the switch.
 
 ![IFTTT Applet](docs/IFTTT_Google_Assistant_Integration.png)
-
