@@ -12,6 +12,7 @@
 
 static const NSUInteger kNumberOfSwitch = 5;
 
+static NSString *const kCloudSwitchAccessTokenKey = @"CloudSwitchAccessTokenKey";
 static NSString *const kCloudSwitchDeviceIDKey = @"CloudSwitchDeviceIDKey";
 static NSString *const kCloudSwitchConfigNamesKey = @"names";
 static NSString *const kCloudSwitchConfigCodesKey = @"codes";
@@ -484,6 +485,12 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     }];
 }
 
+- (bool)tryLogin {
+    NSString *accessToken = [[NSUserDefaults standardUserDefaults] stringForKey:kCloudSwitchAccessTokenKey];
+    if (!accessToken) return NO;
+    return [[ParticleCloud sharedInstance] injectSessionAccessToken:accessToken];
+}
+
 - (void)loginWithUsername:(NSString *)username password:(NSString *)password completion:(void (^)(NSError * _Nullable))completion {
     [[ParticleCloud sharedInstance] loginWithUser:username password:password completion:^(NSError * _Nullable error) {
         if (error) {
@@ -492,6 +499,7 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
         } else {
             [self.delegate onAuthenticationChanged];
             [self retrieveAllDevicesWithCompletion:completion];
+            [[NSUserDefaults standardUserDefaults] setObject:[ParticleCloud sharedInstance].accessToken forKey:kCloudSwitchAccessTokenKey];
         }
     }];
 }

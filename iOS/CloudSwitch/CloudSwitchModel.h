@@ -38,6 +38,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithDelegate:(id<CloudSwitchModelDelegate>)delegate;
 - (void)restoreCloudSwitchDevice;
 
+- (bool)tryLogin;
 - (void)loginWithUsername:(NSString *)username
                  password:(NSString *)password
                completion:(void (^)(NSError * _Nullable error))completion;

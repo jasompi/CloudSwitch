@@ -32,7 +32,9 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     [super viewDidLoad];
     // Do any additional setup after loading the view.
     self.cloudSwitchModel = [[CloudSwitchModel alloc] initWithDelegate:self];
-    [self.cloudSwitchModel restoreCloudSwitchDevice];
+    if ([self.cloudSwitchModel tryLogin]) {
+        [self.cloudSwitchModel restoreCloudSwitchDevice];
+    }
     [self.deviceStatusLabel addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(deviceStatusLabelTapped:)]];
 }
 
@@ -262,7 +264,9 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
             [alert addAction:okAction];
             [self presentViewController:alert animated: YES completion:nil];
         } else {
-            [self showDeviceSelectionAlert];
+            if (self.cloudSwitchModel.cloudSwitchDevice == nil) {
+                [self showDeviceSelectionAlert];
+            }
         }
     }];
 }
