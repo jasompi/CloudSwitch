@@ -7,6 +7,7 @@
 
 #import "ViewController.h"
 #include "CloudSwitchModel.h"
+#include "AppDelegate.h"
 
 static const NSUInteger kNumberOfSwitch = 5;
 static const NSTimeInterval kLongPressHoldTime = 1.0;
@@ -32,6 +33,7 @@ static const NSTimeInterval kLongPressHoldTime = 1.0;
     [super viewDidLoad];
     // Do any additional setup after loading the view.
     self.cloudSwitchModel = [[CloudSwitchModel alloc] initWithDelegate:self];
+    ((AppDelegate *)[UIApplication sharedApplication].delegate).cloudSwitchModel = self.cloudSwitchModel;
     if ([self.cloudSwitchModel tryLogin]) {
         [self.cloudSwitchModel restoreCloudSwitchDevice];
     }

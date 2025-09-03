@@ -48,6 +48,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)toggleSwitch:(NSUInteger)switchIndex completion:(void (^)(NSError * _Nullable))completion;
 - (void)updateSwitch:(NSUInteger)switchIndex withName:(NSString *)name tristateCode:(NSString *)tristateCode;
 
+- (void)toggleSwitch:(NSUInteger)switchIndex withCompletion:(void (^)(NSError * _Nullable))completion;
+
 - (BOOL)switchState:(NSUInteger)switchIndex;
 - (void)setSwitchState:(NSUInteger)switchIndex isOn:(BOOL)isOn;
 

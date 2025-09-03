@@ -538,4 +538,10 @@ static const NSTimeInterval kCloudSwitchReachableCheckPeriod = 60.0;
     }
 }
 
+- (void)toggleSwitch:(NSUInteger)switchIndex withCompletion:(void (^)(NSError * _Nullable))completion {
+    if (![self toggleSwitch:switchIndex completion:completion]) {
+        completion([NSError errorWithDomain:@"com.jpimobile.cloudswitch.error" code:-1 userInfo:nil]);
+    }
+}
+
 @end

@@ -7,8 +7,13 @@
 
 #import <UIKit/UIKit.h>
 
+@class CloudSwitchModel;
+
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 
+@property (nonatomic, nonnull) CloudSwitchModel *cloudSwitchModel;
+
+@property (class, nonatomic, nonnull) AppDelegate *shared;
 
 @end
 
