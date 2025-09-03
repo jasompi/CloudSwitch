@@ -7,7 +7,7 @@
         "system_error": "cpp",
         "typeinfo": "cpp"
     },
-    "particle.targetDevice": "CloudSwitchHub",
+    "particle.targetDevice": "CloudSwitchCC1101",
     "particle.firmwareVersion": "3.3.0",
     "particle.targetPlatform": "photon"
 }

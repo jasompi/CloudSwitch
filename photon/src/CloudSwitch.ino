@@ -1,5 +1,6 @@
 #include "RCSwitch.h"
 #include "clickButton.h"
+#include "ELECHOUSE_CC1101_SRC_DRV.h"
 
 SerialLogHandler logHandler;
 
@@ -8,6 +9,16 @@ int outputPin = D0;
 int buttonPin = D2;
 int inputPin = D3;
 int ledPin = D7;
+
+// Define SPI pins for CC1101
+int CC1101_CSN = A2;
+int CC1101_SCLK = A3;
+int CC1101_MISO = A4;
+int CC1101_MOSI = A5;
+
+// CC1101 GDO0 pin match the outputPin / inputPin
+int GDO0_PIN = D0;
+int GDO2_PIN = D3;
 
 static String gSwitchConfig = "{}";
 static int gTimestamp = 0;
@@ -109,6 +120,7 @@ int sendTristateCode(String command) {
   if (pos2 < 0) {
     return -1;
   }
+  ELECHOUSE_cc1101.SetTx();
   digitalWrite(ledPin, HIGH);
   String triState = command.substring(0, pos);
   int pulseLength = command.substring(pos+1, pos2).toInt();
@@ -126,6 +138,7 @@ int sendTristateCode(String command) {
   unsigned long elapsed = micros() - begin;
   digitalWrite(ledPin, LOW);
   Log.info("sendTriStateCode in %lu microsecond", elapsed);
+  ELECHOUSE_cc1101.SetRx();
   return elapsed;
 }
 
@@ -275,7 +288,20 @@ void setup() {
   digitalWrite(ledPin, LOW);
 
   // Transmitter is connected to Spark Core Pin D0
-  mySwitch.enableTransmit(D0);
+  mySwitch.enableTransmit(outputPin);
+
+  // CC1101 library setup (you need to customize this)
+  ELECHOUSE_cc1101.setSpiPin(CC1101_SCLK, CC1101_MISO, CC1101_MOSI, CC1101_CSN);
+  ELECHOUSE_cc1101.Init(); 
+  ELECHOUSE_cc1101.setMHZ(433.92);
+  ELECHOUSE_cc1101.setModulation(2); // Set modulation to ASK/OOK (value varies by library)
+  // Ensure the CC1101 is configured to output rx raw signal on GDO2 and input tx raw signal on GDO0
+  // This typically involves setting the IOCFG0 register.
+  ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG0, 0x2E); // Serial Data Output with HI_Z
+  ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG2, 0x0D); // Serial RX Data
+  ELECHOUSE_cc1101.setGDO(GDO0_PIN, GDO2_PIN);
+
+  ELECHOUSE_cc1101.SetRx();
 
   // Register function
   Particle.function("sendtristate", sendTristate);
