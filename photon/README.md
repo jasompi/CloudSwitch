@@ -20,6 +20,15 @@ Push Button is optional.
 
 Refer to the [HW pictures](#hw-pictures) below.
 
+The RF ttransmitter and receiver can be replaced with [TI CC1101 433MHz RF Wireless Transceiver Module](https://www.amazon.de/-/en/CC1101-433MHz-Wireless-Transceiver-Module/dp/B09TQ2JMZ8). The wiring as below:
+
+- CSN  <---> A2
+- SCLK <---> A3
+- MISO <---> A4
+- MOSI <---> A5
+- GDO0 <---> D0
+- GDO2 <---> D3
+
 ## Photon Setup
 
 Follow the instructions at [Connect Your Photon](https://docs.particle.io/quickstart/photon/#connect-your-photon)

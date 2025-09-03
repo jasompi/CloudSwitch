@@ -10,6 +10,7 @@ controlled over internet using cell phone app, Apple Home App/Siri or Google Ass
 At the heart of the Cloud Switch is the Clould Switch Hub which make the RF controllable switches accessible
 over the Internet. The Cloud Switch Hub is made of a [Paticl Photon](https://docs.particle.io/photon/),
 an RF receiver module and an RF transmitter module.
+The latest update added support to use TI CC1101 433MHz RF Wireless Transceiver Module.
 
 1. When user press a button on the Remote Control, the Remote Control will send a radio signal
 at the frequency about 433MHz. The signal is used to toggle the switch.
